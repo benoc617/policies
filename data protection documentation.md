@@ -41,11 +41,12 @@ Any recovery of customer data must include all data and configuration up to 30 m
 
 ### Alerting
 Responsible engineering staff must be presented with emergency alerts in any of the following situations that pertain to this policy:
-- Failed backups causing a violation of the above recovery point objective
-- Failed periodic recovery tests
+- Failed backups causing a violation or potential violation of the above recovery point objectives
+- Failed periodic recovery tests or configuration checks
 
 # Technical Documentation
 ## Backups
+![Backup Data Flow Diagram](backupdataflow.png)
 ### Overview
 In order to restore a customer's hosted system in the case of a disaster, we potentially need to reconstruct and restore the AWS OpenSearch Service which contains all retained and indexed log data, as well as the MongoDB database cluster which contains the customer's graylog configuration
 ### AWS OpenSearch Backend
@@ -114,3 +115,4 @@ One that pertains specifically to this data protection policy is the health of A
 
 In addition, the weekly automated backup and restore tests, and backup configuration and retention check, will also send alerts to prometheus alertmanager if they encounter any failures or inconsistencies.
 
+![Testing Monitoring and Alerting Diagram](monitoringalerting.png)
