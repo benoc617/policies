@@ -22,8 +22,8 @@ Data must be recoverable during an AWS Availability Zone (AZ) outage
 Data must be recoverable during an AWS full region outage (e.g. us-east-1)
 
 ### Security
-Data in backups must be subject to same or stricter access controls as production data
-Data in backups must be encrypted in transit and at rest
+All log data and configuration data in backups must be subject to same or stricter access controls as production data
+All log data in backups must be encrypted in transit and at rest
 
 ### Data Recovery Scenarios Supported
 - Reccovery:  Full data recovery of either individual or multiple customers, replacing into their existing running service(s) and account(s).
@@ -37,7 +37,8 @@ Data must be available for the full time that a customer retains data with us. F
 ### Recovery Time Objective (RTO)
 In the worst case scenario, a customer's full data set and configuration must be able to be recovered and back online within 12 hours. (12 hour max recovery downtime)
 ### Recovery Point Objective (RPO)
-Any recovery of customer data must include all data up to 30 minutes prior to service outage. (30 minutes max recovery data loss)
+Any recovery of customer data must include all data and configuration up to 30 minutes prior to service outage. (30 minutes max recovery data loss)
+
 ### Alerting
 Responsible engineering staff must be presented with emergency alerts in any of the following situations that pertain to this policy:
 - Failed backups causing a violation of the above recovery point objective
@@ -46,7 +47,7 @@ Responsible engineering staff must be presented with emergency alerts in any of 
 # Technical Documentation
 ## Backups
 ### Overview
-In order to restore a customer's hosted system in the case of a disaster, we need to reconstruct and restore the AWS OpenSearch Service which contains all retained and indexed log data, as well as the MongoDB database cluster which contains the service configuration and graylog index data
+In order to restore a customer's hosted system in the case of a disaster, we need to reconstruct and restore the AWS OpenSearch Service which contains all retained and indexed log data, as well as the MongoDB database cluster which contains the customer's graylog configuration
 ### AWS OpenSearch Backend
 The following AWS document outlines the functionality of AWS OpenSearch snapshots:  
 https://docs.aws.amazon.com/opensearch-service/latest/developerguide/managedomains-snapshots.html
@@ -61,10 +62,21 @@ In addition to the automatic snapshots, we have manual snapshots scheduled to ex
 
 These backups are generally the main source of data for customer recoveries and parallel restores, since they satisfy our 30 minute RPO.  
 ### MongoDB
+We make use of Mongo Cloud Manager to execute scheduled snapshots of each customer's MongoDB cluster as documented here:
+https://www.mongodb.com/docs/cloud-manager/tutorial/nav/backup-use/
+
+The Mongo Cloud Manager is configured to execute: 
+- a full snapshot backup weekly
+- an incremental snapshot every 6 hours
+- a checkpoint every 15 minutes between snapshots 
+
+These are retained for 90 days minimum, and longer for customers that have longer general data retention (as per above retention requirement).
+
 ## Recovery
 ### Overview
 ### AWS OpenSearch Backend
 ### MongoDB
+## Testing
 ## Alerting
 ### Overview
 ### Prometheus Monitoring and Metrics
