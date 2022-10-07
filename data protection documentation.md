@@ -2,14 +2,14 @@
 ## Executive Summary
 This document defines Graylog Cloud backup and recovery systems. This is including but not limited to: retention definitions, alerting operations, security and encryption, data availability guarantees, recovery point and recovery time objectives, and the technical details of how the systems work.  It is both the "why" and the "what" for Graylog Cloud's backup and recovery.
 
-This policy is designed to protect data within Graylog Cloud to be sure it is not lost, and can be recovered in situations such as:
+This policy is designed to protect data within Graylog Cloud to be sure it is backed up, retained, and can be recovered in situations such as:
 * equipment and service provider failures
 * intentional or accidental destruction of data
 * forced migration
 * other scenarios leading to data loss or corruption
 
 ## Scope
-This policy applies to all data and configuration within the Graylog Cloud service residing within systems owned/leased and operated by Graylog, Inc., as would be required to completely reconstruct any or all customers' services and data in the covered situations.
+This policy applies to all data and configuration within the Graylog Cloud service residing within systems owned/leased and operated by Graylog, Inc., as would be required to completely reconstruct any or all customers' services and data in the covered situations outlined below.
 
 ## Requirements
 ### General
@@ -18,12 +18,12 @@ These requirements are default least restrictive. They can be overriden by stric
 The supported backup and recovery scenarios listed below must be tested weekly.
 
 ### Availability
-Data must be recoverable during an AWS Availability Zone (AZ) outage
-Data must be recoverable during an AWS full region outage (e.g. us-east-1)
+- Log and configuration data must be recoverable during an AWS Availability Zone (AZ) outage
+- Log data must be recoverable during an AWS full region outage (e.g. us-east-1)
 
 ### Security
-All log data and configuration data in backups must be subject to same or stricter access controls as production data
-All log data in backups must be encrypted in transit and at rest
+- All log data and configuration data in backups must be subject to same or stricter access controls as production data
+- All log data in backups must be encrypted in transit and at rest
 
 ### Data Recovery Scenarios Supported
 - Reccovery:  Full data recovery of either individual or multiple customers, replacing into their existing running service(s) and account(s).
@@ -47,18 +47,18 @@ Responsible engineering staff must be presented with emergency alerts in any of 
 # Technical Documentation
 ## Backups
 ### Overview
-In order to restore a customer's hosted system in the case of a disaster, we need to reconstruct and restore the AWS OpenSearch Service which contains all retained and indexed log data, as well as the MongoDB database cluster which contains the customer's graylog configuration
+In order to restore a customer's hosted system in the case of a disaster, we potentially need to reconstruct and restore the AWS OpenSearch Service which contains all retained and indexed log data, as well as the MongoDB database cluster which contains the customer's graylog configuration
 ### AWS OpenSearch Backend
 The following AWS document outlines the functionality of AWS OpenSearch snapshots:  
 https://docs.aws.amazon.com/opensearch-service/latest/developerguide/managedomains-snapshots.html
 
-The creation of snapshots do not interrupt operations on the OpenSearch cluster, but do slightly adversely affect performance, and we have factored in this required overhead in the sizing of these clusters.
+Note: the creation of snapshots do not interrupt operations on the OpenSearch cluster, but do slightly adversely affect performance, and we have factored in this required overhead in the sizing of these clusters.
 #### Automatic OpenSearch Snapshots
 AWS OpenSearch Service automatically takes incremental snapshot series every hour via internal mechanisms. It only retains them for 14 days, and stores them in a single-region S3 bucket that is not generally accessible except by the OpenSearch Service's internal and proprietary restore mechanisms (which we will go over below, and are outlined in the AWS documentation linked above).
 
 Since these backups do not meet our RPO due to their low frequency, they can only be used for recoveries and/or parallel restores where it is known that new data has not been ingested in the past hour, or only data older than one hour is required (e.g. a parallel restore to analyze or compare historical data).
 #### Scheduled Manual OpenSearch Snapshots
-In addition to the automatic snapshots, we have manual snapshots scheduled to execute on all OpenSearch Service clusters. These snapshots are created every 15 minutes and store to an S3 bucket per customer that is replicated to an alternate AWS region.  e.g. if customer is provisioned in us-east-1, the customer's snapshot bucket will be replicated between us-east-1 and us-west-1. These manual snapshots are retained for 90 days default, and longer for customers that have longer general data retention (as per above retention requirement).
+In addition to the automatic snapshots, we have manually-defined snapshots scheduled to execute on all OpenSearch Service clusters. These snapshots are created every 15 minutes and store to an S3 bucket per customer that is replicated to an alternate AWS region.  e.g. if customer is provisioned in us-east-1, the customer's snapshot bucket will be replicated between us-east-1 and us-west-1. These manual snapshots are retained for 90 days default, and longer for customers that have longer general data retention (as per above retention requirement).
 
 These backups are generally the main source of data for customer recoveries and parallel restores, since they satisfy our 30 minute RPO.  
 ### MongoDB
@@ -90,12 +90,16 @@ Mongo Cloud Manager documentation on restoring snapshots:  https://www.mongodb.c
 
 For all recoveries or parallel restores, we restore service configuration into MongoDB by using the Mongo Cloud Manager and documentation linked above.
 
-`mongodbrestore` is a script to perform MongoDB restoration using the Mongo Cloud Manager API.  It accepts, at a minimum, the snapshot id and the MongoDB clusterID to restore the data into as parameters.
+`mongodbrestore` is a script to perform MongoDB restoration using the Mongo Cloud Manager API.  It accepts, at a minimum, the snapshot ID and the MongoDB cluster ID to restore the data into as parameters.
 
 ## Testing
 We maintain multiple provisioned test customers that receive and index test log flow continuously. On a weekly schedule, a parallel restore of one test account, and a recovery of another test account will run, and both restored test instances will be brought online automatically.  Once online, smoke tests will be run automatically to ensure the test instances are running, and the restores were successful according to some limited data comparison, and index size/count expectations.
 
 If any part of these automated restores and verifications fail, an alert will be sent to responsible engineers to repair the issue, re-run all backups if necessary, and re-test restores.
+
+In addition to full restore testing, we execute backup check scripts hourly for each customer. This backup check verifies that OpenSearch and MongoDB snapshots are present for the entire retention period as expected for the given customer, and that ISM (or Curator) for OpenSearch and Mongo Cloud Manager for MongoDB are configured according to specification.
+
+If any error is determined in configuration, or snapshots are not present for the required range, an alert will be sent to responsible engineers to repair the issue, re-run all backups if necessary, and re-run the check script.
 
 ## Alerting
 ### Prometheus Monitoring and Metrics
@@ -108,5 +112,5 @@ Within prometheus, we have several alerts defined based on the above metrics, an
 
 One that pertains specifically to this data protection policy is the health of AWS OpenSearch. When the AWS OpenSearch cluster is `RED` an alert will be sent to responsible engineers to repair the issue, and re-run all backups if necessary, and verify backups are functioning. When OpenSearch clusters are not healthy, snapshots do not run, and it puts us at risk of missing our RPO of 30 minutes.
 
-In addition, the weekly automated backup and restore tests will also send alerts to prometheus alertmanager if they encounter any failure or inconsistency.
+In addition, the weekly automated backup and restore tests, and backup configuration and retention check, will also send alerts to prometheus alertmanager if they encounter any failures or inconsistencies.
 
