@@ -57,7 +57,7 @@ The creation of snapshots do not interrupt operations on the OpenSearch cluster,
 AWS OpenSearch Service automatically takes incremental snapshot series every hour via internal mechanisms. It only retains them for 14 days, and stores them in a single-region S3 bucket that is not generally accessible except by the OpenSearch Service's internal and proprietary restore mechanisms (which we will go over below, and are outlined in the AWS documentation linked above).
 
 Since these backups do not meet our RPO due to their low frequency, they can only be used for recoveries and/or parallel restores where it is known that new data has not been ingested in the past hour, or only data older than one hour is required (e.g. a parallel restore to analyze or compare historical data).
-#### Manual OpenSearch Snapshots
+#### Scheduled Manual OpenSearch Snapshots
 In addition to the automatic snapshots, we have manual snapshots scheduled to execute on all OpenSearch Service clusters. These snapshots are created every 15 minutes and store to an S3 bucket per customer that is replicated to an alternate AWS region.  e.g. if customer is provisioned in us-east-1, the customer's snapshot bucket will be replicated between us-east-1 and us-west-1. These manual snapshots are retained for 90 days default, and longer for customers that have longer general data retention (as per above retention requirement).
 
 These backups are generally the main source of data for customer recoveries and parallel restores, since they satisfy our 30 minute RPO.  
@@ -72,12 +72,41 @@ The Mongo Cloud Manager is configured to execute:
 
 These are retained for 90 days default, and longer for customers that have longer general data retention (as per above retention requirement).
 
-## Recovery
+## Restoring
 ### Overview
+In a recovery scenario, the customer's existing data stores would be re-provisioned, and restoration of AWS OpenSearch and MongoDB would be done in-place.
+
+In a parallel restore scenario, a new set of data stores and service would be provisioned, and restoration of AWS OpenSearch and MongoDB would be done into those new data stores.
+
 ### AWS OpenSearch Backend
+AWS documentation on restoring snapshots:  https://docs.aws.amazon.com/opensearch-service/latest/developerguide/managedomains-snapshots.html#managedomains-snapshot-restore
+
+For all recoveries or parallel restores, we restore all indices from the scheduled manual OpenSearch snapshot at the desired recovery point. Restoring from the automatic OpenSearch snapshot is an option as long as a potentially one-hour older recovery point is acceptable.
+
+`opensearchrestore` is a script to perform snapshot restoration. It accepts, at a minimum, the OpenSearch domain endpoint, snapshot repository name, and snapshot name as parameters.  
+
 ### MongoDB
+Mongo Cloud Manager documentation on restoring snapshots:  https://www.mongodb.com/docs/cloud-manager/tutorial/nav/backup-restore-deployments/
+
+For all recoveries or parallel restores, we restore service configuration into MongoDB by using the Mongo Cloud Manager and documentation linked above.
+
+`mongodbrestore` is a script to perform MongoDB restoration using the Mongo Cloud Manager API.  It accepts, at a minimum, the snapshot id and the MongoDB clusterID to restore the data into as parameters.
+
 ## Testing
+We maintain multiple provisioned test customers that receive and index test log flow continuously. On a weekly schedule, a parallel restore of one test account, and a recovery of another test account will run, and both restored test instances will be brought online automatically.  Once online, smoke tests will be run automatically to ensure the test instances are running, and the restores were successful according to some limited data comparison, and index size/count expectations.
+
+If any part of these automated restores and verifications fail, an alert will be sent to responsible engineers to repair the issue, re-run all backups if necessary, and re-test restores.
+
 ## Alerting
-### Overview
 ### Prometheus Monitoring and Metrics
+Prometheus is a time series database (TSDB) that gathers metrics and telemetry from our graylog servers, MongoDB clusters, and AWS OpenSearch cluster via standard prometheus exporters.
+
+This allows us to monitor critical infrastructure metrics, such as disk space, cpu saturation, server reachability, loadbalancer health, etc.  It also allows us to monitor critical service metrics, such as JVM garbage collection rates, heap utilization, server performance, log throughput, OpenSearch indexing throughput and health, etc.
+
 ### Alerts
+Within prometheus, we have several alerts defined based on the above metrics, and these forward to a pager rotation service to reach engineers via prometheus alertmanager.
+
+One that pertains specifically to this data protection policy is the health of AWS OpenSearch. When the AWS OpenSearch cluster is `RED` an alert will be sent to responsible engineers to repair the issue, and re-run all backups if necessary, and verify backups are functioning. When OpenSearch clusters are not healthy, snapshots do not run, and it puts us at risk of missing our RPO of 30 minutes.
+
+In addition, the weekly automated backup and restore tests will also send alerts to prometheus alertmanager if they encounter any failure or inconsistency.
+
