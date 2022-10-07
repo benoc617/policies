@@ -1,4 +1,4 @@
-#Policy
+# Policy
 ## Executive Summary
 ## Scope
 ## Requirements
@@ -11,7 +11,7 @@
 ### Recovery Point Objective
 ### Alerting
 
-#Technical Documentation
+# Technical Documentation
 ## Backups
 ### Overview
 ### AWS OpenSearch Backend
