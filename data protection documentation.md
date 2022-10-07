@@ -58,7 +58,7 @@ AWS OpenSearch Service automatically takes incremental snapshot series every hou
 
 Since these backups do not meet our RPO due to their low frequency, they can only be used for recoveries and/or parallel restores where it is known that new data has not been ingested in the past hour, or only data older than one hour is required (e.g. a parallel restore to analyze or compare historical data).
 #### Manual OpenSearch Snapshots
-In addition to the automatic snapshots, we have manual snapshots scheduled to execute on all OpenSearch Service clusters. These snapshots are created every 15 minutes and store to an S3 bucket per customer that is replicated to an alternate AWS region.  e.g. if customer is provisioned in us-east-1, the customer's snapshot bucket will be replicated between us-east-1 and us-west-1. These manual snapshots are retained for 90 days minimum, and longer for customers that have longer general data retention (as per above retention requirement).
+In addition to the automatic snapshots, we have manual snapshots scheduled to execute on all OpenSearch Service clusters. These snapshots are created every 15 minutes and store to an S3 bucket per customer that is replicated to an alternate AWS region.  e.g. if customer is provisioned in us-east-1, the customer's snapshot bucket will be replicated between us-east-1 and us-west-1. These manual snapshots are retained for 90 days default, and longer for customers that have longer general data retention (as per above retention requirement).
 
 These backups are generally the main source of data for customer recoveries and parallel restores, since they satisfy our 30 minute RPO.  
 ### MongoDB
@@ -70,7 +70,7 @@ The Mongo Cloud Manager is configured to execute:
 - an incremental snapshot every 6 hours
 - a checkpoint every 15 minutes between snapshots 
 
-These are retained for 90 days minimum, and longer for customers that have longer general data retention (as per above retention requirement).
+These are retained for 90 days default, and longer for customers that have longer general data retention (as per above retention requirement).
 
 ## Recovery
 ### Overview
